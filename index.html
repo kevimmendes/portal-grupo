@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Grupo de Estudos — Portal</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- ===== Ecrã de entrada (senha) ===== -->
+  <main id="ecra-login" class="login">
+    <form id="form-login" class="cartao-login" autocomplete="on">
+      <div class="marca-login">
+        <span class="logo" aria-hidden="true">GE</span>
+        <div>
+          <h1>Grupo de Estudos</h1>
+          <p class="sub">Escolhe o teu nome e entra com a tua senha.</p>
+        </div>
+      </div>
+
+      <p class="rotulo">Quem és tu?</p>
+      <div id="escolher-membro" class="escolher-membro" role="radiogroup" aria-label="Escolher membro"></div>
+
+      <label class="campo">
+        <span>Senha</span>
+        <input id="senha-login" name="senha" type="password" required autocomplete="current-password"
+               placeholder="A tua senha">
+      </label>
+
+      <button class="botao primario largo" type="submit" id="btn-entrar">Entrar</button>
+      <p id="erro-login" class="erro" role="alert" hidden></p>
+      <p class="dica">A senha inicial de cada pessoa está no README do projeto. Muda-a depois de entrares.</p>
+      <p class="dica">Versão publicada: o que mudares fica guardado só neste navegador.</p>
+    </form>
+  </main>
+
+  <!-- ===== Aplicação ===== -->
+  <div id="ecra-app" hidden>
+    <header class="topo">
+      <div class="marca">
+        <span class="logo" aria-hidden="true">GE</span>
+        <div class="marca-texto">
+          <strong>Grupo de Estudos</strong>
+          <small id="marca-sub">portal do grupo</small>
+        </div>
+      </div>
+
+      <nav id="abas" class="abas" aria-label="Secções do portal"></nav>
+
+      <div class="utilizador">
+        <div class="utilizador-info">
+          <span id="utilizador-nome"></span>
+          <span id="utilizador-papel" class="etiqueta"></span>
+        </div>
+        <button id="btn-senha" class="botao fantasma" type="button">Senha</button>
+        <button id="btn-sair" class="botao fantasma" type="button">Sair</button>
+      </div>
+    </header>
+
+    <main id="conteudo" class="conteudo"></main>
+  </div>
+
+  <!-- ===== Modal ===== -->
+  <div id="fundo-modal" class="fundo-modal" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-titulo">
+      <div class="modal-topo">
+        <h2 id="modal-titulo"></h2>
+        <button id="btn-fechar-modal" class="botao fantasma" type="button" aria-label="Fechar">✕</button>
+      </div>
+      <form id="form-modal" class="modal-corpo"></form>
+    </div>
+  </div>
+
+  <div id="aviso" class="aviso" hidden></div>
+
+  <script src="dados-iniciais.js"></script>
+  <script src="api-local.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
