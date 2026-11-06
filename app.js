@@ -724,6 +724,11 @@ function desenharGrelhaLivros(container) {
     return combinaTexto && combinaEstado;
   });
 
+  if (!estado.livros.length) {
+    container.append(h('p', { classe: 'vazio', texto: 'Ainda não há livros na lista. Usa «Adicionar livro» para começares.' }));
+    return;
+  }
+
   if (!lista.length) {
     container.append(h('p', { classe: 'vazio', texto: 'Nenhum livro encontrado. Limpa a procura ou muda o filtro.' }));
     return;
