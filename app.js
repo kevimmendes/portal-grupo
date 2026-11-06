@@ -9,6 +9,7 @@ const estado = {
   membros: [],
   livros: [],
   informacoes: [],
+  projetos: [],
   catalogo: [],
   descricoes: {},
   aba: null,
@@ -404,6 +405,195 @@ function cartaoLivrosDaPessoa(membro) {
   return h('section', { classe: 'cartao' }, h('p', { classe: 'titulo-seccao', texto: `Livros de ${membro.nome}` }), corpo);
 }
 
+// --- Projetos ---------------------------------------------------------------
+
+const ESTADOS_PROJETO = ['Planeado', 'A decorrer', 'Concluído'];
+
+function chipProjeto(valorEstado) {
+  const classe = { Planeado: 'quero-ler', 'A decorrer': 'a-ler', Concluído: 'lido' }[valorEstado] || '';
+  return h('span', { classe: `chip ${classe}`, texto: valorEstado });
+}
+
+function cartaoProjetos(membro) {
+  const projetos = estado.projetos.filter((p) => p.membro_id === membro.id);
+  const eEu = membro.id === estado.eu.id;
+  const podeGerir = pode('projetos.gerir') && (eEu || estado.eu.papel === 'admin');
+  const corpo = h('div', { classe: 'grelha', style: 'gap:0' });
+
+  if (!projetos.length) {
+    corpo.append(h('p', { classe: 'vazio', texto: 'Ainda não há projetos nesta aba.' }));
+  }
+
+  for (const projeto of projetos) {
+    const acoes = h('div', { classe: 'acoes-livro' });
+    if (podeGerir) {
+      acoes.append(
+        h('button', { classe: 'botao pequeno', type: 'button', texto: 'Editar', onclick: () => modalProjeto(membro, projeto) }),
+        h('button', { classe: 'botao pequeno perigo', type: 'button', texto: 'Apagar', onclick: () => apagarProjeto(projeto) })
+      );
+    }
+
+    corpo.append(
+      h(
+        'div',
+        { classe: 'linha-livro' },
+        h(
+          'div',
+          {},
+          h('div', { classe: 'titulo-livro', texto: projeto.titulo }),
+          projeto.descricao ? h('div', { classe: 'autor-livro', texto: projeto.descricao }) : null
+        ),
+        h(
+          'div',
+          { classe: 'linha-chips' },
+          chipProjeto(projeto.estado),
+          projeto.link
+            ? h('a', { classe: 'botao pequeno fantasma', href: projeto.link, target: '_blank', rel: 'noopener', texto: 'Abrir link' })
+            : null,
+          acoes.childElementCount ? acoes : null
+        )
+      )
+    );
+  }
+
+  return h(
+    'section',
+    { classe: 'cartao' },
+    h(
+      'p',
+      { classe: 'titulo-seccao' },
+      h('span', { texto: `Projetos de ${membro.nome}` }),
+      podeGerir ? h('button', { classe: 'botao pequeno', type: 'button', texto: 'Novo projeto', onclick: () => modalProjeto(membro, null) }) : null
+    ),
+    corpo
+  );
+}
+
+function modalProjeto(membro, projetoExistente) {
+  const projeto = projetoExistente || {};
+
+  abrirModal({
+    titulo: projetoExistente ? 'Editar projeto' : `Novo projeto de ${membro.nome}`,
+    textoBotao: projetoExistente ? 'Guardar' : 'Adicionar',
+    campos: [
+      { nome: 'titulo', etiqueta: 'Título', valor: projeto.titulo || '', obrigatorio: true, placeholder: 'Nome do projeto' },
+      {
+        nome: 'estado',
+        etiqueta: 'Estado',
+        tipo: 'select',
+        valor: projeto.estado || 'Planeado',
+        opcoes: ESTADOS_PROJETO.map((v) => ({ valor: v, texto: v })),
+      },
+      { nome: 'descricao', etiqueta: 'O que é', tipo: 'textarea', valor: projeto.descricao || '', linhas: 4 },
+      { nome: 'link', etiqueta: 'Link (opcional)', valor: projeto.link || '', placeholder: 'https://…' },
+    ],
+    aoSubmeter: async (dados) => {
+      const corpo = {
+        titulo: dados.titulo,
+        estado: dados.estado,
+        descricao: dados.descricao,
+        link: dados.link,
+        membro_id: membro.id,
+      };
+
+      if (projetoExistente) await pedir('PUT', `/api/projetos/${projetoExistente.id}`, corpo);
+      else await pedir('POST', '/api/projetos', corpo);
+
+      await recarregar();
+      renderConteudo();
+      aviso(projetoExistente ? 'Projeto atualizado.' : 'Projeto adicionado.');
+    },
+  });
+}
+
+async function apagarProjeto(projeto) {
+  if (!window.confirm(`Apagar o projeto "${projeto.titulo}"?`)) return;
+  try {
+    await pedir('DELETE', `/api/projetos/${projeto.id}`);
+    await recarregar();
+    renderConteudo();
+    aviso('Projeto apagado.');
+  } catch (falha) {
+    aviso(falha.message, 'erro');
+  }
+}
+
+// --- PDF dos livros ---------------------------------------------------------
+
+function pdfDoLivro(livro) {
+  const recursos = window.PortalAPI && window.PortalAPI.recursos;
+  const suportado = Boolean(recursos && recursos.pdfs);
+  const linha = h('div', { classe: 'linha-chips' });
+
+  if (livro.pdf_url) {
+    linha.append(h('a', { classe: 'botao pequeno', href: livro.pdf_url, target: '_blank', rel: 'noopener', texto: 'Abrir PDF' }));
+  } else if (livro.pdf && suportado) {
+    linha.append(h('button', { classe: 'botao pequeno', type: 'button', texto: 'Abrir PDF', onclick: () => abrirPdfLivro(livro) }));
+  } else {
+    linha.append(h('span', { classe: 'chip', texto: 'Sem PDF' }));
+  }
+
+  if (livro.pdf && livro.pdf.nome) linha.append(h('span', { classe: 'chip', texto: livro.pdf.nome }));
+
+  if (suportado && pode('livros.editar')) {
+    linha.append(
+      h('button', {
+        classe: 'botao pequeno fantasma',
+        type: 'button',
+        texto: livro.pdf ? 'Trocar PDF' : 'Anexar PDF',
+        onclick: () => escolherPdf(livro),
+      })
+    );
+    if (livro.pdf) {
+      linha.append(h('button', { classe: 'botao pequeno perigo', type: 'button', texto: 'Tirar PDF', onclick: () => tirarPdf(livro) }));
+    }
+  }
+
+  return linha;
+}
+
+async function abrirPdfLivro(livro) {
+  try {
+    const url = await window.PortalAPI.obterPdf(livro.id);
+    if (!url) {
+      aviso('Este livro já não tem o PDF guardado. Anexa outra vez.', 'erro');
+      return;
+    }
+    window.open(url, '_blank', 'noopener');
+  } catch (falha) {
+    aviso(falha.message, 'erro');
+  }
+}
+
+function escolherPdf(livro) {
+  const seletor = h('input', { type: 'file', accept: 'application/pdf' });
+  seletor.onchange = async () => {
+    const ficheiro = seletor.files && seletor.files[0];
+    if (!ficheiro) return;
+    try {
+      await window.PortalAPI.guardarPdf(livro.id, ficheiro);
+      await recarregar();
+      renderConteudo();
+      aviso('PDF anexado ao livro.');
+    } catch (falha) {
+      aviso(falha.message, 'erro');
+    }
+  };
+  seletor.click();
+}
+
+async function tirarPdf(livro) {
+  if (!window.confirm(`Tirar o PDF de "${livro.titulo}"?`)) return;
+  try {
+    await window.PortalAPI.apagarPdf(livro.id);
+    await recarregar();
+    renderConteudo();
+    aviso('PDF removido. O livro continua na lista.');
+  } catch (falha) {
+    aviso(falha.message, 'erro');
+  }
+}
+
 function cartaoPermissoes(papel) {
   const permissoes = estado.catalogo.find((p) => p.papel === papel)?.permissoes || [];
   const lista = h('div', { classe: 'lista-permissoes' });
@@ -454,7 +644,7 @@ function renderMembro(membro) {
         h('p', {
           texto: eEu
             ? 'Esta é a tua aba. Mantém a descrição e a função em dia.'
-            : 'Perfil, permissões e livros desta pessoa dentro do grupo.',
+            : 'Perfil, permissões, livros e projetos desta pessoa dentro do grupo.',
         })
       )
     )
@@ -464,7 +654,13 @@ function renderMembro(membro) {
     h(
       'div',
       { classe: 'grelha grelha-2' },
-      h('div', { classe: 'grelha' }, cartaoPerfil(membro), cartaoLivrosDaPessoa(membro)),
+      h(
+        'div',
+        { classe: 'grelha' },
+        cartaoPerfil(membro),
+        cartaoLivrosDaPessoa(membro),
+        window.PortalAPI && window.PortalAPI.recursos && window.PortalAPI.recursos.projetos ? cartaoProjetos(membro) : null
+      ),
       cartaoPermissoes(membro.papel)
     )
   );
@@ -558,6 +754,7 @@ function cartaoLivro(livro) {
       livro.nota ? h('span', { classe: 'estrelas', title: `${livro.nota} de 5`, texto: estrelas(livro.nota) }) : null
     ),
     livro.resumo ? h('p', { classe: 'resumo', texto: livro.resumo }) : null,
+    pdfDoLivro(livro),
     h(
       'div',
       { classe: 'rodape-cartao' },
