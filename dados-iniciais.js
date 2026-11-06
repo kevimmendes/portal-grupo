@@ -105,88 +105,9 @@
     },
   ];
 
-  const LIVROS = [
-    {
-      titulo: 'Ensaio sobre a Cegueira',
-      autor: 'José Saramago',
-      ano: 1995,
-      genero: 'Romance',
-      estado: 'Lido',
-      nota: 5,
-      resumo: 'Uma cidade inteira fica cega de repente. Serve para discutir organização social e solidariedade.',
-      membro: 'Bernardo',
-    },
-    {
-      titulo: 'Os Maias',
-      autor: 'Eça de Queirós',
-      ano: 1888,
-      genero: 'Romance',
-      estado: 'A ler',
-      nota: 4,
-      resumo: 'Leitura obrigatória para a parte de Realismo. Vale a pena ler os capítulos sobre a educação de Carlos.',
-      membro: 'Rodrigo',
-    },
-    {
-      titulo: 'Mensagem',
-      autor: 'Fernando Pessoa',
-      ano: 1934,
-      genero: 'Poesia',
-      estado: 'Lido',
-      nota: 5,
-      resumo: 'Poesia sebastianista. Útil para a apresentação sobre o imaginário nacional.',
-      membro: 'Diogo',
-    },
-    {
-      titulo: 'O Primo Basílio',
-      autor: 'Eça de Queirós',
-      ano: 1878,
-      genero: 'Romance',
-      estado: 'Quero ler',
-      nota: null,
-      resumo: 'Segunda opção para a análise do Realismo, se faltar tempo para Os Maias.',
-      membro: 'Tiago',
-    },
-    {
-      titulo: 'A Cidade e as Serras',
-      autor: 'Eça de Queirós',
-      ano: 1901,
-      genero: 'Romance',
-      estado: 'Quero ler',
-      nota: null,
-      resumo: 'Contraste entre a cidade e o campo. Bom para a parte final do trabalho.',
-      membro: 'Simão',
-    },
-    {
-      titulo: 'Livro do Desassossego',
-      autor: 'Fernando Pessoa',
-      ano: 1982,
-      genero: 'Prosa',
-      estado: 'A ler',
-      nota: 4,
-      resumo: 'Fragmentos. Cada pessoa leu uma parte e trouxe uma citação para a reunião.',
-      membro: 'Bernardo',
-    },
-    {
-      titulo: 'Memorial do Convento',
-      autor: 'José Saramago',
-      ano: 1982,
-      genero: 'Romance histórico',
-      estado: 'Lido',
-      nota: 4,
-      resumo: 'Ligação entre o poder e as pessoas comuns. Bom exemplo de narrador interventivo.',
-      membro: 'Rodrigo',
-    },
-    {
-      titulo: 'Peregrinação',
-      autor: 'Fernão Mendes Pinto',
-      ano: 1614,
-      genero: 'Literatura de viagens',
-      estado: 'Quero ler',
-      nota: null,
-      resumo: 'Para a parte dos Descobrimentos, se o professor pedir fontes da época.',
-      membro: 'Simão',
-    },
-  ];
+  // A lista começa vazia: cada pessoa do grupo acrescenta os livros que vamos
+  // lendo, com o PDF anexado. Assim o portal publicado não traz livros de exemplo.
+  const LIVROS = [];
 
   // Projetos de cada pessoa, mostrados na aba dela.
   const PROJETOS = [
@@ -270,7 +191,7 @@
       titulo: 'Livros e PDF',
       ordem: 5,
       conteudo:
-        'Cada livro pode ter o PDF anexado. Na lista dos livros, o botão «Anexar PDF» escolhe um ficheiro do computador e o botão «Abrir PDF» abre-o numa aba nova.\n\nO PDF fica guardado no navegador de quem o anexou, não num servidor: quem entrar noutro computador só vê o PDF depois de o anexar outra vez. Se preferires um ficheiro comum a todos, usa um link em vez do ficheiro.',
+        'Cada livro pode ter o PDF anexado. Na lista dos livros, o botão «Anexar PDF» escolhe um ficheiro do computador e o botão «Abrir PDF» abre-o numa aba nova.\n\nO PDF fica guardado no navegador de quem o anexou, não num servidor: quem entrar noutro computador só vê o PDF depois de o anexar outra vez. Os livros e as informações que acrescentares ficam sempre guardados neste navegador, mesmo que o site seja atualizado.',
     },
   ];
 

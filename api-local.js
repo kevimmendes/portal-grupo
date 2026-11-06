@@ -20,6 +20,19 @@
   const ESTADOS_LIVRO = ['Lido', 'A ler', 'Quero ler'];
   const ESTADOS_PROJETO = ['Planeado', 'A decorrer', 'Concluído'];
 
+  // Livros de exemplo que o portal trazia nas primeiras versões. Já não são
+  // semeados e são retirados a quem os tenha guardados (ver migrar()).
+  const EXEMPLOS_ANTIGOS = [
+    'Ensaio sobre a Cegueira',
+    'Os Maias',
+    'Mensagem',
+    'O Primo Basílio',
+    'A Cidade e as Serras',
+    'Livro do Desassossego',
+    'Memorial do Convento',
+    'Peregrinação',
+  ];
+
   function erro(status, mensagem) {
     const e = new Error(mensagem);
     e.status = status;
@@ -122,6 +135,16 @@
     base.livros = Array.isArray(base.livros) ? base.livros : [];
     base.informacoes = Array.isArray(base.informacoes) ? base.informacoes : [];
     base.projetos = Array.isArray(base.projetos) ? base.projetos : [];
+
+    // Os livros de exemplo saíram do portal: retiram-se uma única vez, para não
+    // voltarem a aparecer a quem já tinha os dados guardados no navegador. Os
+    // livros que a pessoa acrescentou — e os que já têm PDF — ficam como estão.
+    if (!base.limpezaExemplos) {
+      base.livros = base.livros.filter((livro) => livro.pdf || !EXEMPLOS_ANTIGOS.includes(livro.titulo));
+      base.limpezaExemplos = true;
+      gravar(base);
+    }
+
     base.proximoId = base.proximoId || {};
     base.proximoId.membros = base.proximoId.membros || base.membros.length + 1;
     base.proximoId.livros = base.proximoId.livros || base.livros.length + 1;
