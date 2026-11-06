@@ -20,6 +20,7 @@
       'livros.editar',
       'livros.apagar',
       'informacoes.editar',
+      'projetos.gerir',
       'perfil.editar',
       'senha.mudar',
     ],
@@ -28,6 +29,7 @@
       'livros.criar',
       'livros.editar',
       'informacoes.editar',
+      'projetos.gerir',
       'perfil.editar',
       'senha.mudar',
     ],
@@ -38,9 +40,10 @@
     'membros.ver': 'Ver as abas de todas as pessoas do grupo',
     'membros.gerir': 'Mudar permissões e repor senhas',
     'livros.criar': 'Adicionar livros à lista',
-    'livros.editar': 'Editar livros da lista',
+    'livros.editar': 'Editar livros e anexar os PDF',
     'livros.apagar': 'Apagar livros da lista',
     'informacoes.editar': 'Editar as informações do grupo',
+    'projetos.gerir': 'Criar e editar os projetos da própria aba',
     'perfil.editar': 'Editar a própria descrição',
     'senha.mudar': 'Mudar a própria senha',
   };
@@ -185,6 +188,59 @@
     },
   ];
 
+  // Projetos de cada pessoa, mostrados na aba dela.
+  const PROJETOS = [
+    {
+      titulo: 'Portal do grupo',
+      membro: 'Kévim',
+      estado: 'A decorrer',
+      descricao: 'Este portal: abas por pessoa, livros em PDF e informações do grupo.',
+      link: '',
+    },
+    {
+      titulo: 'Ligação ao GitHub',
+      membro: 'Kévim',
+      estado: 'Planeado',
+      descricao: 'Uma aba para ligar o portal à conta GitHub e mostrar os repositórios do grupo.',
+      link: '',
+    },
+    {
+      titulo: 'Calendário de entregas',
+      membro: 'Diogo',
+      estado: 'A decorrer',
+      descricao: 'Datas das reuniões e das entregas do trabalho, para ninguém se esquecer.',
+      link: '',
+    },
+    {
+      titulo: 'Lista de bibliografia',
+      membro: 'Bernardo',
+      estado: 'Concluído',
+      descricao: 'Levantamento dos livros e artigos que o grupo vai usar.',
+      link: '',
+    },
+    {
+      titulo: 'Resumos do primeiro capítulo',
+      membro: 'Rodrigo',
+      estado: 'A decorrer',
+      descricao: 'Resumos por capítulo, com as citações que interessam à apresentação.',
+      link: '',
+    },
+    {
+      titulo: 'Formatação do documento final',
+      membro: 'Tiago',
+      estado: 'Planeado',
+      descricao: 'Capa, índices, tipos de letra e revisão antes da entrega.',
+      link: '',
+    },
+    {
+      titulo: 'Citações e referências',
+      membro: 'Simão',
+      estado: 'A decorrer',
+      descricao: 'Normas de citação e contactos com os professores.',
+      link: '',
+    },
+  ];
+
   const INFORMACOES = [
     {
       titulo: 'Sobre o grupo',
@@ -208,9 +264,15 @@
       titulo: 'Permissões do portal',
       ordem: 4,
       conteudo:
-        'Administrador (só o Kévim): vê tudo, gere pessoas e permissões e apaga livros.\nEditor (todos os outros): adiciona e edita livros e informações.\nLeitor: consulta o portal e edita apenas a sua própria descrição, caso um dia seja preciso dar acesso só de leitura.\n\nSó o administrador pode mudar o papel de alguém.',
+        'Administrador (só o Kévim): vê tudo, gere pessoas e permissões e apaga livros.\nEditor (todos os outros): adiciona e edita livros e informações, anexa PDF e cria os seus projetos.\nLeitor: consulta o portal e edita apenas a sua própria descrição, caso um dia seja preciso dar acesso só de leitura.\n\nSó o administrador pode mudar o papel de alguém.',
+    },
+    {
+      titulo: 'Livros e PDF',
+      ordem: 5,
+      conteudo:
+        'Cada livro pode ter o PDF anexado. Na lista dos livros, o botão «Anexar PDF» escolhe um ficheiro do computador e o botão «Abrir PDF» abre-o numa aba nova.\n\nO PDF fica guardado no navegador de quem o anexou, não num servidor: quem entrar noutro computador só vê o PDF depois de o anexar outra vez. Se preferires um ficheiro comum a todos, usa um link em vez do ficheiro.',
     },
   ];
 
-  return { PERMISSOES, DESCRICOES_PERMISSAO, MEMBROS, LIVROS, INFORMACOES };
+  return { PERMISSOES, DESCRICOES_PERMISSAO, MEMBROS, LIVROS, PROJETOS, INFORMACOES };
 });
