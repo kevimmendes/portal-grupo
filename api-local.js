@@ -18,6 +18,7 @@
   const DESCRICOES = DADOS.DESCRICOES_PERMISSAO;
   const PAPEIS = Object.keys(PERMISSOES);
   const ESTADOS_LIVRO = ['Lido', 'A ler', 'Quero ler'];
+  const ESTADOS_PROJETO = ['Planeado', 'A decorrer', 'Concluído'];
 
   function erro(status, mensagem) {
     const e = new Error(mensagem);
@@ -50,7 +51,8 @@
       membros: [],
       livros: [],
       informacoes: [],
-      proximoId: { membros: 1, livros: 1, informacoes: 1 },
+      projetos: [],
+      proximoId: { membros: 1, livros: 1, informacoes: 1, projetos: 1 },
     };
     const ids = {};
 
@@ -96,7 +98,36 @@
       });
     }
 
+    for (const projeto of DADOS.PROJETOS || []) {
+      base.projetos.push({
+        id: base.proximoId.projetos++,
+        titulo: projeto.titulo,
+        descricao: projeto.descricao || '',
+        estado: ESTADOS_PROJETO.includes(projeto.estado) ? projeto.estado : 'Planeado',
+        link: projeto.link || '',
+        membro_id: ids[projeto.membro] ?? null,
+        criado_em: agora(),
+      });
+    }
+
     gravar(base);
+    return base;
+  }
+
+  // Uma base guardada antes de existirem projetos não tem essa lista: completa-se
+  // em vez de se perderem os livros e as informações que já lá estão.
+  function migrar(base) {
+    if (!base || !Array.isArray(base.membros)) return semear();
+
+    base.livros = Array.isArray(base.livros) ? base.livros : [];
+    base.informacoes = Array.isArray(base.informacoes) ? base.informacoes : [];
+    base.projetos = Array.isArray(base.projetos) ? base.projetos : [];
+    base.proximoId = base.proximoId || {};
+    base.proximoId.membros = base.proximoId.membros || base.membros.length + 1;
+    base.proximoId.livros = base.proximoId.livros || base.livros.length + 1;
+    base.proximoId.informacoes = base.proximoId.informacoes || base.informacoes.length + 1;
+    base.proximoId.projetos = base.proximoId.projetos || base.projetos.length + 1;
+
     return base;
   }
 
@@ -109,7 +140,7 @@
     }
     if (bruto) {
       try {
-        return JSON.parse(bruto);
+        return migrar(JSON.parse(bruto));
       } catch {
         /* dados estragados: volta aos dados iniciais */
       }
@@ -168,6 +199,10 @@
         .slice()
         .sort((a, b) => a.ordem - b.ordem || a.id - b.id)
         .map((i) => ({ ...i, autor_nome: nomeDe(i.atualizado_por) })),
+      projetos: base.projetos
+        .slice()
+        .sort((a, b) => a.id - b.id)
+        .map((p) => ({ ...p, membro_nome: nomeDe(p.membro_id) })),
       catalogo: PAPEIS.map((papel) => ({ papel, permissoes: permissoesDe(papel) })),
       descricoes: DESCRICOES,
     };
@@ -189,6 +224,20 @@
       estado: ESTADOS_LIVRO.includes(corpo?.estado) ? corpo.estado : 'Quero ler',
       nota: Number.isInteger(nota) && nota >= 1 && nota <= 5 ? nota : null,
       resumo: texto(corpo?.resumo, 1200),
+    };
+  }
+
+  function lerProjeto(corpo) {
+    const titulo = texto(corpo?.titulo, 120);
+    if (!titulo) throw erro(400, 'O título do projeto é obrigatório.');
+
+    const link = texto(corpo?.link, 300);
+
+    return {
+      titulo,
+      descricao: texto(corpo?.descricao, 600),
+      estado: ESTADOS_PROJETO.includes(corpo?.estado) ? corpo.estado : 'Planeado',
+      link: /^https?:\/\/\S+$/i.test(link) ? link : '',
     };
   }
 
@@ -357,8 +406,125 @@
       return { ok: true };
     }
 
+    if (recurso === 'projetos' && metodo === 'POST') {
+      exigir('projetos.gerir');
+      const alvo = base.membros.find((m) => m.id === Number(dados.membro_id)) || eu;
+      const novo = {
+        id: base.proximoId.projetos++,
+        ...lerProjeto(dados),
+        membro_id: alvo.id,
+        criado_em: agora(),
+      };
+      base.projetos.push(novo);
+      gravar(base);
+      return { ok: true, id: novo.id };
+    }
+
+    if (recurso === 'projetos' && (metodo === 'PUT' || metodo === 'DELETE')) {
+      exigir('projetos.gerir');
+      const projeto = base.projetos.find((p) => p.id === id);
+      if (!projeto) throw erro(404, 'Projeto não encontrado.');
+      if (projeto.membro_id !== eu.id && eu.papel !== 'admin') {
+        throw erro(403, 'Só podes mexer nos projetos da tua aba.');
+      }
+
+      if (metodo === 'DELETE') base.projetos.splice(base.projetos.indexOf(projeto), 1);
+      else Object.assign(projeto, lerProjeto(dados));
+
+      gravar(base);
+      return { ok: true };
+    }
+
     throw erro(404, 'Rota não encontrada.');
   }
 
-  window.PortalAPI = { pedir };
+  // --- PDFs dos livros -----------------------------------------------------
+  // O localStorage tem poucos megabytes e os PDF não cabem lá: os ficheiros vão
+  // para o IndexedDB deste navegador e a ficha do livro só guarda nome e tamanho.
+
+  const BD_PDFS = 'portal-grupo-pdfs';
+  const LOJA_PDFS = 'ficheiros';
+  const TAMANHO_MAX_PDF = 25 * 1024 * 1024;
+
+  function abrirPdfs() {
+    return new Promise((resolver, rejeitar) => {
+      if (typeof indexedDB === 'undefined') {
+        rejeitar(new Error('Este navegador não deixa guardar PDF. Usa um link em vez do ficheiro.'));
+        return;
+      }
+      const pedido = indexedDB.open(BD_PDFS, 1);
+      pedido.onupgradeneeded = () => {
+        const bd = pedido.result;
+        if (!bd.objectStoreNames.contains(LOJA_PDFS)) bd.createObjectStore(LOJA_PDFS);
+      };
+      pedido.onsuccess = () => resolver(pedido.result);
+      pedido.onerror = () => rejeitar(new Error('Não foi possível abrir o arquivo de PDF.'));
+    });
+  }
+
+  async function comPdfs(modo, acao) {
+    const bd = await abrirPdfs();
+    return new Promise((resolver, rejeitar) => {
+      const transacao = bd.transaction(LOJA_PDFS, modo);
+      const pedido = acao(transacao.objectStore(LOJA_PDFS));
+      transacao.oncomplete = () => {
+        bd.close();
+        resolver(pedido ? pedido.result : undefined);
+      };
+      transacao.onerror = () => {
+        bd.close();
+        rejeitar(transacao.error || new Error('Não foi possível guardar o PDF.'));
+      };
+    });
+  }
+
+  function sessaoObrigatoria(permissao) {
+    const base = abrir();
+    const eu = base.membros.find((m) => m.id === idDaSessao()) || null;
+    if (!eu) throw erro(401, 'Precisas de entrar com a tua senha.');
+    if (permissao && !permissoesDe(eu.papel).includes(permissao)) {
+      throw erro(403, 'A tua permissão não permite esta ação.');
+    }
+    return { base, eu };
+  }
+
+  async function guardarPdf(livroId, ficheiro) {
+    const { base } = sessaoObrigatoria('livros.editar');
+    const livro = base.livros.find((l) => l.id === Number(livroId));
+    if (!livro) throw erro(404, 'Livro não encontrado.');
+    if (!ficheiro || ficheiro.type !== 'application/pdf') throw erro(400, 'Escolhe um ficheiro PDF.');
+    if (ficheiro.size > TAMANHO_MAX_PDF) throw erro(400, 'O PDF tem de ter menos de 25 MB.');
+
+    await comPdfs('readwrite', (loja) => loja.put(ficheiro, String(livro.id)));
+
+    livro.pdf = { nome: texto(ficheiro.name, 120) || 'livro.pdf', tamanho: ficheiro.size };
+    gravar(base);
+    return { ok: true, pdf: livro.pdf };
+  }
+
+  async function obterPdf(livroId) {
+    const ficheiro = await comPdfs('readonly', (loja) => loja.get(String(Number(livroId))));
+    if (!ficheiro) return null;
+    return URL.createObjectURL(ficheiro);
+  }
+
+  async function apagarPdf(livroId) {
+    const { base } = sessaoObrigatoria('livros.editar');
+    const livro = base.livros.find((l) => l.id === Number(livroId));
+    if (!livro) throw erro(404, 'Livro não encontrado.');
+
+    await comPdfs('readwrite', (loja) => loja.delete(String(livro.id)));
+
+    livro.pdf = null;
+    gravar(base);
+    return { ok: true };
+  }
+
+  window.PortalAPI = {
+    pedir,
+    recursos: { projetos: true, pdfs: true },
+    guardarPdf,
+    obterPdf,
+    apagarPdf,
+  };
 })();
