@@ -38,6 +38,8 @@
 
   let ultimaImportacao = { importados: 0 };
   let importacaoEmCurso = null;
+  let importouAgora = false;
+  let temporizadorAviso = null;
 
   function lerToken() {
     try {
@@ -80,18 +82,46 @@
     return dados;
   }
 
-  async function pedir(metodo, rota, corpo) {
+  async function pedirCru(metodo, rota, corpo) {
     const opcoes = { method: metodo, headers: cabecalhos() };
     if (corpo !== undefined) {
       opcoes.headers['Content-Type'] = 'application/json';
       opcoes.body = JSON.stringify(corpo);
     }
+    return lerResposta(await fetch(SERVIDOR + rota, opcoes));
+  }
 
-    const dados = await lerResposta(await fetch(SERVIDOR + rota, opcoes));
+  async function pedir(metodo, rota, corpo) {
+    let dados = await pedirCru(metodo, rota, corpo);
 
     if (rota === '/api/entrar' && dados && dados.token) gravarToken(dados.token);
     if (rota === '/api/sair') gravarToken(null);
+
+    // Ao entrar (ou ao abrir o site já com sessão), os livros que estejam só
+    // neste navegador sobem para o servidor antes de a lista ser mostrada.
+    if (rota === '/api/entrar' || rota === '/api/sessao') {
+      await recuperarDoNavegador();
+      if (rota === '/api/sessao' && importouAgora) {
+        importouAgora = false;
+        dados = await pedirCru('GET', '/api/sessao');
+      }
+    }
+
     return dados;
+  }
+
+  function avisar(mensagem) {
+    setTimeout(() => {
+      const caixa = document.getElementById('aviso');
+      if (!caixa) return;
+      caixa.textContent = mensagem;
+      caixa.className = 'aviso';
+      caixa.hidden = false;
+      clearTimeout(temporizadorAviso);
+      temporizadorAviso = setTimeout(() => {
+        caixa.hidden = true;
+      }, 6000);
+    }, 900);
   }
 
   function parecePdf(ficheiro) {
@@ -188,8 +218,9 @@
     const livrosAntigos = lerLivrosAntigos();
     if (!livrosAntigos.length) return { importados: 0 };
 
-    const sessao = await pedir('GET', '/api/sessao');
-    const chaveDe = (titulo, autor) => `${String(titulo).trim().toLowerCase()}|${String(autor).trim().toLowerCase()}`;
+    const sessao = await pedirCru('GET', '/api/sessao');
+    const chaveDe = (titulo, autor) =>
+      `${String(titulo).trim().toLowerCase()}|${String(autor).trim().toLowerCase()}`;
     const jaExiste = new Set((sessao.livros || []).map((l) => chaveDe(l.titulo, l.autor)));
 
     let importados = 0;
@@ -207,7 +238,7 @@
       const nota = Number(antigo.nota);
 
       try {
-        const criado = await pedir('POST', '/api/livros', {
+        const criado = await pedirCru('POST', '/api/livros', {
           titulo,
           autor,
           ano: Number.isInteger(ano) && ano >= 1 ? ano : null,
@@ -223,7 +254,7 @@
             try {
               await enviarPdf(criado.id, ficheiro);
             } catch {
-              /* o livro fica, o PDF volta a anexar-se à mão */
+              /* o livro fica; o PDF volta a anexar-se à mão */
             }
           }
         }
@@ -238,8 +269,8 @@
     return { importados };
   }
 
-  // Corre no máximo uma vez por navegador. Se falhar (rede em baixo), fica por
-  // marcar e tenta outra vez na próxima vez que se entrar.
+  // Corre no máximo uma vez por navegador. Se a rede falhar, não fica marcado,
+  // para tentar outra vez na próxima visita.
   function recuperarDoNavegador() {
     if (importacaoEmCurso) return importacaoEmCurso;
 
@@ -247,7 +278,6 @@
       try {
         if (localStorage.getItem(CHAVE_RECUPERADO)) return ultimaImportacao;
       } catch {
-        /* sem localStorage não há nada a recuperar */
         return ultimaImportacao;
       }
 
@@ -265,6 +295,13 @@
       } catch {
         /* nada a fazer */
       }
+
+      if (ultimaImportacao.importados > 0) {
+        importouAgora = true;
+        const total = ultimaImportacao.importados;
+        avisar(`Guardei no portal ${total} livro${total === 1 ? '' : 's'} que estavam só neste navegador.`);
+      }
+
       return ultimaImportacao;
     })();
 
