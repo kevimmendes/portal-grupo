@@ -595,7 +595,8 @@ function pdfDoLivro(livro) {
     linha.append(h('span', { classe: 'chip', texto: 'Sem PDF' }));
   }
 
-  if (livro.pdf && livro.pdf.nome) linha.append(h('span', { classe: 'chip', texto: livro.pdf.nome }));
+  // O nome do ficheiro não diz nada: fica a primeira página em miniatura.
+  const previa = livro.pdf && livro.pdf.nome && suportado ? h('div', { classe: 'pdf-previa' }, previaPdf(livro)) : null;
 
   if (suportado && pode('livros.editar')) {
     linha.append(
@@ -611,7 +612,136 @@ function pdfDoLivro(livro) {
     }
   }
 
-  return linha;
+  if (!previa) return linha;
+
+  const partes = document.createDocumentFragment();
+  partes.append(previa, linha);
+  return partes;
+}
+
+// --- Miniatura do PDF -------------------------------------------------------
+
+const LARGURA_PREVIA = 104;
+const CDN_PDFJS = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/';
+
+let promessaPdfjs = null;
+let observadorPrevia = null;
+const previasPorCaixa = new WeakMap();
+const previasProntas = new Map();
+
+function previaPdf(livro) {
+  const nome = (livro.pdf && livro.pdf.nome) || 'PDF';
+  const tela = h('canvas', { classe: 'previa-pdf-tela' });
+  const caixa = h(
+    'button',
+    {
+      classe: 'previa-pdf',
+      type: 'button',
+      title: nome,
+      'aria-label': `Abrir o PDF de ${livro.titulo}`,
+      onclick: () => abrirPdfLivro(livro),
+    },
+    tela,
+    h('span', { classe: 'previa-pdf-nome', texto: nome }),
+    h('span', { classe: 'previa-pdf-selo', texto: 'PDF' })
+  );
+
+  previasPorCaixa.set(caixa, { livro, tela });
+
+  if ('IntersectionObserver' in window) {
+    if (!observadorPrevia) observadorPrevia = criarObservadorPrevia();
+    observadorPrevia.observe(caixa);
+  } else {
+    desenharPrevia(livro, tela);
+  }
+
+  return caixa;
+}
+
+// Só se pede o PDF quando o cartão se aproxima do ecrã.
+function criarObservadorPrevia() {
+  return new IntersectionObserver(
+    (entradas) => {
+      for (const entrada of entradas) {
+        if (!entrada.isIntersecting) continue;
+        const registo = previasPorCaixa.get(entrada.target);
+        if (!registo) continue;
+        if (observadorPrevia) observadorPrevia.unobserve(entrada.target);
+        desenharPrevia(registo.livro, registo.tela);
+      }
+    },
+    { rootMargin: '300px' }
+  );
+}
+
+function carregarPdfjs() {
+  if (promessaPdfjs) return promessaPdfjs;
+
+  promessaPdfjs = import(`${CDN_PDFJS}pdf.min.mjs`).then((modulo) => {
+    const biblioteca = modulo.default || modulo;
+    biblioteca.GlobalWorkerOptions.workerSrc = `${CDN_PDFJS}pdf.worker.min.mjs`;
+    return biblioteca;
+  });
+
+  promessaPdfjs.catch(() => {
+    promessaPdfjs = null;
+  });
+
+  return promessaPdfjs;
+}
+
+async function desenharPrevia(livro, tela) {
+  const caixa = tela.closest('.previa-pdf');
+  const chave = `${livro.id}:${(livro.pdf && livro.pdf.nome) || ''}`;
+
+  const pronta = previasProntas.get(chave);
+  if (pronta) {
+    await pintarImagem(tela, pronta);
+    if (caixa) caixa.classList.add('com-previa');
+    return;
+  }
+
+  let url = null;
+  let documento = null;
+
+  try {
+    const [pdfjs, ficheiro] = await Promise.all([carregarPdfjs(), window.PortalAPI.obterPdf(livro.id)]);
+    url = ficheiro;
+    if (!url) throw new Error('Este livro não tem o PDF guardado.');
+
+    documento = await pdfjs.getDocument(url).promise;
+    const pagina = await documento.getPage(1);
+    const base = pagina.getViewport({ scale: 1 });
+    // 2× para não ficar desfocado em ecrãs de alta densidade.
+    const viewport = pagina.getViewport({ scale: (LARGURA_PREVIA / base.width) * 2 });
+
+    tela.width = Math.round(viewport.width);
+    tela.height = Math.round(viewport.height);
+    await pagina.render({ canvasContext: tela.getContext('2d'), viewport }).promise;
+
+    previasProntas.set(chave, tela.toDataURL('image/jpeg', 0.72));
+    if (caixa) caixa.classList.add('com-previa');
+  } catch {
+    // Sem rede, sem pdf.js ou sem PDF: fica o papel com o nome do ficheiro.
+    if (caixa) caixa.classList.add('sem-previa');
+  } finally {
+    if (documento) documento.destroy();
+    if (url) URL.revokeObjectURL(url);
+  }
+}
+
+function pintarImagem(tela, origem) {
+  return new Promise((resolver) => {
+    const imagem = new Image();
+    imagem.onload = () => {
+      tela.width = imagem.naturalWidth;
+      tela.height = imagem.naturalHeight;
+      tela.getContext('2d').drawImage(imagem, 0, 0);
+      resolver();
+    };
+    imagem.onerror = () => resolver();
+    imagem.src = origem;
+  });
 }
 
 async function abrirPdfLivro(livro) {
