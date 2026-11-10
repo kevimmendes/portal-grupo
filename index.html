@@ -3,8 +3,13 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0a0c11">
+  <meta name="description" content="Portal do grupo de estudos: livros, projetos e informações partilhadas.">
   <title>Grupo de Estudos — Portal</title>
-  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&display=swap">
+  <link rel="stylesheet" href="style.css?v=4">
 </head>
 <body>
 
@@ -46,7 +51,7 @@
         </div>
       </div>
 
-      <nav id="abas" class="abas" aria-label="Secções do portal"></nav>
+      <nav id="abas" class="abas" role="tablist" aria-label="Secções do portal"></nav>
 
       <div class="utilizador">
         <div class="utilizador-info">
@@ -58,7 +63,9 @@
       </div>
     </header>
 
-    <main id="conteudo" class="conteudo"></main>
+    <main class="conteudo">
+      <div id="conteudo" role="tabpanel"></div>
+    </main>
   </div>
 
   <!-- ===== Modal ===== -->
@@ -72,9 +79,9 @@
     </div>
   </div>
 
-  <div id="aviso" class="aviso" hidden></div>
+  <div id="aviso" class="aviso" role="status" hidden></div>
 
-  <script src="api-http.js?v=2"></script>
-  <script src="app.js?v=2"></script>
+  <script src="api-http.js?v=4"></script>
+  <script src="app.js?v=4"></script>
 </body>
 </html>

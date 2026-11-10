@@ -19,6 +19,8 @@ const NOMES_PAPEL = { admin: 'Administrador', editor: 'Editor', leitor: 'Leitor'
 let filtroLivros = { q: '', estado: 'todos' };
 let membroEscolhido = null;
 let temporizadorAviso = null;
+let temporizadorEntrada = null;
+let elementoAntesDoModal = null;
 
 const $ = (seletor) => document.querySelector(seletor);
 
@@ -68,7 +70,13 @@ function aviso(mensagem, tipo = 'ok') {
   caixa.className = tipo === 'erro' ? 'aviso erro' : 'aviso';
   caixa.hidden = false;
   clearTimeout(temporizadorAviso);
-  temporizadorAviso = setTimeout(() => { caixa.hidden = true; }, 4200);
+  temporizadorAviso = setTimeout(() => {
+    caixa.classList.add('a-sair');
+    temporizadorAviso = setTimeout(() => {
+      caixa.hidden = true;
+      caixa.classList.remove('a-sair');
+    }, 160);
+  }, 4200);
 }
 
 function iniciais(nome) {
@@ -118,10 +126,32 @@ function todasAsPermissoes() {
 // Modal genérico
 // ============================================================
 
+// Enquanto o modal está aberto o resto da página fica inerte: nem o teclado nem
+// o leitor de ecrã saem do diálogo.
+function definirFundoInerte(inerte) {
+  for (const alvo of [$('#ecra-app'), $('#ecra-login')]) {
+    if (!alvo) continue;
+    if (inerte) alvo.setAttribute('inert', '');
+    else alvo.removeAttribute('inert');
+  }
+}
+
 function fecharModal() {
-  $('#fundo-modal').hidden = true;
-  $('#form-modal').replaceChildren();
-  $('#modal-titulo').textContent = '';
+  const fundo = $('#fundo-modal');
+  if (fundo.hidden) return;
+
+  fundo.classList.add('a-sair');
+  setTimeout(() => {
+    fundo.hidden = true;
+    fundo.classList.remove('a-sair');
+    $('#form-modal').replaceChildren();
+    $('#modal-titulo').textContent = '';
+    definirFundoInerte(false);
+    if (elementoAntesDoModal && elementoAntesDoModal !== document.body && elementoAntesDoModal.isConnected) {
+      elementoAntesDoModal.focus();
+    }
+    elementoAntesDoModal = null;
+  }, 140);
 }
 
 function abrirModal({ titulo, campos, textoBotao = 'Guardar', aoSubmeter }) {
@@ -181,6 +211,8 @@ function abrirModal({ titulo, campos, textoBotao = 'Guardar', aoSubmeter }) {
     }
   };
 
+  elementoAntesDoModal = document.activeElement;
+  definirFundoInerte(true);
   $('#fundo-modal').hidden = false;
   const primeiro = form.querySelector('input, textarea, select');
   if (primeiro) primeiro.focus();
@@ -209,11 +241,18 @@ async function prepararLogin() {
         membro.nome
       );
       botao.setAttribute('aria-checked', String(membro.id === membroEscolhido));
-      botao.onclick = () => {
+      // Grupo de opções: só a opção escolhida entra na ordem do Tab.
+      botao.tabIndex = membro.id === membroEscolhido ? 0 : -1;
+      botao.onclick = (evento) => {
         membroEscolhido = membro.id;
-        for (const outro of caixa.children) outro.setAttribute('aria-checked', 'false');
+        for (const outro of caixa.children) {
+          outro.setAttribute('aria-checked', 'false');
+          outro.tabIndex = -1;
+        }
         botao.setAttribute('aria-checked', 'true');
-        $('#senha-login').focus();
+        botao.tabIndex = 0;
+        // Só o rato salta para a senha: com as setas o foco fica no grupo.
+        if (evento.detail > 0) $('#senha-login').focus();
       };
       caixa.append(botao);
     }
@@ -296,38 +335,61 @@ function mudarAba(chave) {
   history.replaceState(null, '', `#${chave}`);
   renderAbas();
   renderConteudo();
-  window.scrollTo({ top: 0, behavior: 'smooth' });
+
+  const semMovimento = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  window.scrollTo({ top: 0, behavior: semMovimento ? 'auto' : 'smooth' });
 }
 
 function renderAbas() {
   const nav = $('#abas');
+  const focarAtivo = nav.contains(document.activeElement);
   nav.replaceChildren();
+
+  const criarAba = (chave, ...conteudo) => {
+    const ativa = estado.aba === chave;
+    const botao = h(
+      'button',
+      { type: 'button', classe: 'aba', role: 'tab', id: `aba-${chave}`, 'aria-controls': 'conteudo' },
+      ...conteudo
+    );
+    botao.setAttribute('aria-selected', String(ativa));
+    // Só o separador ativo entra na ordem do Tab; os outros chegam-se com as setas.
+    botao.tabIndex = ativa ? 0 : -1;
+    botao.onclick = () => mudarAba(chave);
+    return botao;
+  };
 
   for (const membro of estado.membros) {
     const chave = `membro-${membro.id}`;
-    const botao = h(
-      'button',
-      { type: 'button', classe: 'aba', role: 'tab' },
-      h('span', { classe: 'ponto', style: `background:${membro.cor}` }),
-      membro.nome
-    );
-    if (membro.id === estado.eu.id) botao.append(h('span', { classe: 'aba-eu', texto: 'eu' }));
-    botao.setAttribute('aria-selected', String(estado.aba === chave));
-    botao.onclick = () => mudarAba(chave);
-    nav.append(botao);
+    const conteudo = [h('span', { classe: 'ponto', style: `background:${membro.cor}` }), membro.nome];
+    if (membro.id === estado.eu.id) conteudo.push(h('span', { classe: 'aba-eu', texto: 'eu' }));
+    nav.append(criarAba(chave, ...conteudo));
   }
 
-  for (const [chave, titulo] of [['livros', 'Livros'], ['informacoes', 'Informações']]) {
-    const botao = h('button', { type: 'button', classe: 'aba', role: 'tab', texto: titulo });
-    botao.setAttribute('aria-selected', String(estado.aba === chave));
-    botao.onclick = () => mudarAba(chave);
-    nav.append(botao);
+  for (const [chave, titulo] of [
+    ['livros', 'Livros'],
+    ['informacoes', 'Informações'],
+  ]) {
+    nav.append(criarAba(chave, titulo));
+  }
+
+  // Redesenhar as abas não pode roubar o foco a quem está a navegar por elas.
+  if (focarAtivo) {
+    const ativa = nav.querySelector('[aria-selected="true"]');
+    if (ativa) ativa.focus();
   }
 }
 
 function renderConteudo() {
   const alvo = $('#conteudo');
   alvo.replaceChildren();
+  if (estado.aba) alvo.setAttribute('aria-labelledby', `aba-${estado.aba}`);
+
+  // A marca de entrada só fica no contentor durante a animação: a procura de
+  // livros redesenha a grelha a cada tecla e não deve voltar a animar.
+  alvo.classList.add('entra');
+  clearTimeout(temporizadorEntrada);
+  temporizadorEntrada = setTimeout(() => alvo.classList.remove('entra'), 800);
 
   if (estado.aba === 'livros') return alvo.append(renderLivros());
   if (estado.aba === 'informacoes') return alvo.append(renderInformacoes());
@@ -362,7 +424,7 @@ function cartaoPerfil(membro) {
       { classe: 'perfil' },
       h('div', {
         classe: 'avatar',
-        style: `background: linear-gradient(135deg, ${membro.cor}, #a5f3fc)`,
+        style: `--cor-membro: ${membro.cor}`,
         texto: iniciais(membro.nome),
       }),
       h(
@@ -694,6 +756,8 @@ function renderLivros() {
   const procura = h('input', { type: 'search', placeholder: 'Procurar por título, autor ou género', value: filtroLivros.q });
   procura.oninput = () => {
     filtroLivros.q = procura.value;
+    // Procurar não é uma entrada de ecrã: os cartões novos não voltam a animar.
+    $('#conteudo').classList.remove('entra');
     desenharGrelhaLivros(grelha);
   };
 
@@ -705,6 +769,7 @@ function renderLivros() {
   }
   seletor.onchange = () => {
     filtroLivros.estado = seletor.value;
+    $('#conteudo').classList.remove('entra');
     desenharGrelhaLivros(grelha);
   };
 
@@ -1013,8 +1078,44 @@ function modalReporSenha(membro) {
 // Arranque
 // ============================================================
 
+// Setas, Home e End: o teclado dos separadores e dos grupos de opções.
+function navegarAbas(evento) {
+  const abas = [...$('#abas').querySelectorAll('[role="tab"]')];
+  const indice = abas.indexOf(document.activeElement);
+  if (indice === -1) return;
+
+  let alvo = null;
+  if (evento.key === 'ArrowRight') alvo = abas[(indice + 1) % abas.length];
+  else if (evento.key === 'ArrowLeft') alvo = abas[(indice - 1 + abas.length) % abas.length];
+  else if (evento.key === 'Home') alvo = abas[0];
+  else if (evento.key === 'End') alvo = abas[abas.length - 1];
+  if (!alvo) return;
+
+  evento.preventDefault();
+  alvo.click();
+}
+
+function navegarMembros(evento) {
+  const opcoes = [...$('#escolher-membro').children];
+  const indice = opcoes.indexOf(document.activeElement);
+  if (indice === -1) return;
+
+  let alvo = null;
+  if (evento.key === 'ArrowRight' || evento.key === 'ArrowDown') alvo = opcoes[(indice + 1) % opcoes.length];
+  else if (evento.key === 'ArrowLeft' || evento.key === 'ArrowUp') alvo = opcoes[(indice - 1 + opcoes.length) % opcoes.length];
+  else if (evento.key === 'Home') alvo = opcoes[0];
+  else if (evento.key === 'End') alvo = opcoes[opcoes.length - 1];
+  if (!alvo) return;
+
+  evento.preventDefault();
+  alvo.focus();
+  alvo.click();
+}
+
 async function arrancar() {
   $('#form-login').addEventListener('submit', entrar);
+  $('#abas').addEventListener('keydown', navegarAbas);
+  $('#escolher-membro').addEventListener('keydown', navegarMembros);
   $('#btn-sair').addEventListener('click', sair);
   $('#btn-senha').addEventListener('click', modalSenha);
   $('#btn-fechar-modal').addEventListener('click', fecharModal);
