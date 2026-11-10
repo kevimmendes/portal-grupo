@@ -8,11 +8,36 @@
 //
 // A sessão vai num token guardado neste navegador (Authorization: Bearer), e não
 // num cookie, porque o site e o servidor são domínios diferentes.
+//
+// A versão anterior do portal (sem servidor) guardava os livros no localStorage
+// e os PDF no IndexedDB deste mesmo domínio. Ao entrar, essa lista é enviada uma
+// única vez para o servidor, para ninguém perder o que já tinha publicado.
 
 (function () {
   const SERVIDOR = 'https://site-9f9c094977bc4670993c9aa59ad3ee28.freebuff.page';
   const CHAVE_TOKEN = 'portal-grupo:token:v1';
+  const CHAVE_ANTIGA = 'portal-grupo:v1';
+  const CHAVE_RECUPERADO = 'portal-grupo:recuperado:v1';
+  const BD_PDFS = 'portal-grupo-pdfs';
+  const LOJA_PDFS = 'ficheiros';
   const TAMANHO_MAX_PDF = 25 * 1024 * 1024;
+
+  // Livros de exemplo das primeiras versões: não voltam para a lista.
+  const EXEMPLOS_ANTIGOS = [
+    'ensaio sobre a cegueira',
+    'os maias',
+    'mensagem',
+    'o primo basílio',
+    'a cidade e as serras',
+    'livro do desassossego',
+    'memorial do convento',
+    'peregrinação',
+  ];
+
+  const ESTADOS_LIVRO = ['Lido', 'A ler', 'Quero ler'];
+
+  let ultimaImportacao = { importados: 0 };
+  let importacaoEmCurso = null;
 
   function lerToken() {
     try {
@@ -69,8 +94,12 @@
     return dados;
   }
 
-  async function guardarPdf(livroId, ficheiro) {
-    if (!ficheiro || ficheiro.type !== 'application/pdf') throw new Error('Escolhe um ficheiro PDF.');
+  function parecePdf(ficheiro) {
+    return ficheiro.type === 'application/pdf' || /\.pdf$/i.test(String(ficheiro.name || ''));
+  }
+
+  async function enviarPdf(livroId, ficheiro) {
+    if (!ficheiro || !parecePdf(ficheiro)) throw new Error('Escolhe um ficheiro PDF.');
     if (ficheiro.size > TAMANHO_MAX_PDF) throw new Error('O PDF tem de ter menos de 25 MB.');
 
     const resposta = await fetch(`${SERVIDOR}/api/livros/${Number(livroId)}/pdf`, {
@@ -82,6 +111,11 @@
       body: ficheiro,
     });
     return lerResposta(resposta);
+  }
+
+  async function guardarPdf(livroId, ficheiro) {
+    if (!ficheiro || !parecePdf(ficheiro)) throw new Error('Escolhe um ficheiro PDF.');
+    return enviarPdf(livroId, ficheiro);
   }
 
   async function obterPdf(livroId) {
@@ -98,11 +132,154 @@
     return lerResposta(resposta);
   }
 
+  // --- Recuperação dos livros da versão antiga -----------------------------
+
+  function lerLivrosAntigos() {
+    let base = null;
+    try {
+      base = JSON.parse(localStorage.getItem(CHAVE_ANTIGA) || 'null');
+    } catch {
+      base = null;
+    }
+    if (!base || !Array.isArray(base.livros)) return [];
+    return base.livros;
+  }
+
+  function lerPdfAntigo(chave) {
+    return new Promise((resolver) => {
+      if (typeof indexedDB === 'undefined') {
+        resolver(null);
+        return;
+      }
+      let pedido;
+      try {
+        pedido = indexedDB.open(BD_PDFS, 1);
+      } catch {
+        resolver(null);
+        return;
+      }
+      pedido.onupgradeneeded = () => {
+        const bd = pedido.result;
+        if (!bd.objectStoreNames.contains(LOJA_PDFS)) bd.createObjectStore(LOJA_PDFS);
+      };
+      pedido.onerror = () => resolver(null);
+      pedido.onsuccess = () => {
+        const bd = pedido.result;
+        try {
+          const transacao = bd.transaction(LOJA_PDFS, 'readonly');
+          const busca = transacao.objectStore(LOJA_PDFS).get(String(chave));
+          busca.onsuccess = () => {
+            bd.close();
+            resolver(busca.result || null);
+          };
+          busca.onerror = () => {
+            bd.close();
+            resolver(null);
+          };
+        } catch {
+          bd.close();
+          resolver(null);
+        }
+      };
+    });
+  }
+
+  async function enviarLivrosAntigos() {
+    const livrosAntigos = lerLivrosAntigos();
+    if (!livrosAntigos.length) return { importados: 0 };
+
+    const sessao = await pedir('GET', '/api/sessao');
+    const chaveDe = (titulo, autor) => `${String(titulo).trim().toLowerCase()}|${String(autor).trim().toLowerCase()}`;
+    const jaExiste = new Set((sessao.livros || []).map((l) => chaveDe(l.titulo, l.autor)));
+
+    let importados = 0;
+
+    for (const antigo of livrosAntigos) {
+      const titulo = String(antigo.titulo || '').trim();
+      const autor = String(antigo.autor || '').trim();
+      if (!titulo || !autor) continue;
+      if (EXEMPLOS_ANTIGOS.includes(titulo.toLowerCase())) continue;
+
+      const chave = chaveDe(titulo, autor);
+      if (jaExiste.has(chave)) continue;
+
+      const ano = Number(antigo.ano);
+      const nota = Number(antigo.nota);
+
+      try {
+        const criado = await pedir('POST', '/api/livros', {
+          titulo,
+          autor,
+          ano: Number.isInteger(ano) && ano >= 1 ? ano : null,
+          genero: String(antigo.genero || ''),
+          estado: ESTADOS_LIVRO.includes(antigo.estado) ? antigo.estado : 'Quero ler',
+          nota: Number.isInteger(nota) && nota >= 1 && nota <= 5 ? nota : null,
+          resumo: String(antigo.resumo || ''),
+        });
+
+        if (antigo.pdf && criado && criado.id) {
+          const ficheiro = await lerPdfAntigo(antigo.id);
+          if (ficheiro) {
+            try {
+              await enviarPdf(criado.id, ficheiro);
+            } catch {
+              /* o livro fica, o PDF volta a anexar-se à mão */
+            }
+          }
+        }
+
+        jaExiste.add(chave);
+        importados += 1;
+      } catch {
+        /* um livro que falhe não trava os outros */
+      }
+    }
+
+    return { importados };
+  }
+
+  // Corre no máximo uma vez por navegador. Se falhar (rede em baixo), fica por
+  // marcar e tenta outra vez na próxima vez que se entrar.
+  function recuperarDoNavegador() {
+    if (importacaoEmCurso) return importacaoEmCurso;
+
+    importacaoEmCurso = (async () => {
+      try {
+        if (localStorage.getItem(CHAVE_RECUPERADO)) return ultimaImportacao;
+      } catch {
+        /* sem localStorage não há nada a recuperar */
+        return ultimaImportacao;
+      }
+
+      if (!lerToken()) return ultimaImportacao;
+
+      try {
+        ultimaImportacao = await enviarLivrosAntigos();
+      } catch {
+        importacaoEmCurso = null;
+        return ultimaImportacao;
+      }
+
+      try {
+        localStorage.setItem(CHAVE_RECUPERADO, new Date().toISOString());
+      } catch {
+        /* nada a fazer */
+      }
+      return ultimaImportacao;
+    })();
+
+    return importacaoEmCurso;
+  }
+
   window.PortalAPI = {
     pedir,
     recursos: { projetos: true, pdfs: true },
     guardarPdf,
     obterPdf,
     apagarPdf,
+    recuperarDoNavegador,
+    get ultimaImportacao() {
+      return ultimaImportacao;
+    },
   };
 })();
