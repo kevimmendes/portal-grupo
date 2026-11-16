@@ -3,6 +3,15 @@
 /* Nome, tamanho e autor ocupam a linha; os botões passam para baixo em ecrãs estreitos. */
 .linha-livro .acoes-livro { justify-content: flex-end; }
 
+/* As abas desta página são ligações (não botões), por isso perdem o sublinhado. */
+a.aba { text-decoration: none; }
+
+a.aba[aria-current='page'] {
+  color: var(--texto);
+  background: var(--acento-veu);
+  border-color: rgba(226, 181, 104, 0.42);
+}
+
 @media (max-width: 560px) {
   .linha-livro { flex-wrap: wrap; }
   .linha-livro .acoes-livro { width: 100%; justify-content: flex-start; }
