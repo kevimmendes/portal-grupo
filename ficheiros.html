@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0a0c11">
+  <meta name="description" content="Ficheiros partilhados do grupo de estudos.">
+  <title>Ficheiros — Grupo de Estudos</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&display=swap">
+  <link rel="stylesheet" href="style.css?v=5">
+  <link rel="stylesheet" href="ficheiros.css?v=1">
+</head>
+<body>
+
+  <div id="ecra-app" hidden>
+    <header class="topo">
+      <div class="marca">
+        <span class="logo" aria-hidden="true">GE</span>
+        <div class="marca-texto">
+          <strong>Grupo de Estudos</strong>
+          <small>ficheiros do grupo</small>
+        </div>
+      </div>
+
+      <nav class="abas" aria-label="Secções do portal">
+        <a class="aba" href="index.html">Portal</a>
+        <a class="aba" href="ficheiros.html" aria-current="page">Ficheiros</a>
+      </nav>
+
+      <div class="utilizador">
+        <div class="utilizador-info">
+          <span id="utilizador-nome"></span>
+          <span id="utilizador-papel" class="etiqueta"></span>
+        </div>
+        <a id="btn-portal" class="botao fantasma" href="index.html">Voltar ao portal</a>
+      </div>
+    </header>
+
+    <main class="conteudo">
+      <div id="conteudo" role="main"></div>
+    </main>
+  </div>
+
+  <div id="aviso" class="aviso" role="status" hidden></div>
+
+  <script src="api-http.js?v=4"></script>
+  <script src="api-ficheiros.js?v=1"></script>
+  <script src="ficheiros.js?v=1"></script>
+</body>
+</html>
