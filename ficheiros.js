@@ -18,6 +18,7 @@ let caixa = null;
 let temporizadorAviso = null;
 let temporizadorAtualizacao = null;
 let aEnviar = false;
+let aPedirChave = false;
 
 // Cria elementos sem innerHTML: o texto do utilizador nunca é interpretado como HTML.
 function h(tag, props = {}, ...filhos) {
@@ -109,6 +110,7 @@ function render() {
 }
 
 function desenharPedidoDeChave(mensagem) {
+  aPedirChave = true;
   const campo = h('input', { type: 'password', placeholder: 'Código do grupo', autocomplete: 'off' });
   const erro = h('p', { classe: 'erro', texto: mensagem || '' });
   erro.hidden = !mensagem;
@@ -144,6 +146,7 @@ function desenharPedidoDeChave(mensagem) {
 }
 
 function desenharLista() {
+  aPedirChave = false;
   caixa.replaceChildren();
 
   if (!ficheiros.length) {
@@ -189,7 +192,8 @@ async function carregar(forcar = false) {
   if (!api() || !caixa) return;
 
   if (!api().lerChave()) {
-    desenharPedidoDeChave('');
+    // A atualização automática não pode apagar o código que se está a escrever.
+    if (!aPedirChave) desenharPedidoDeChave('');
     return;
   }
 
