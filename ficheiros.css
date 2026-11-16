@@ -1,0 +1,9 @@
+/* ================= Ficheiros ================= */
+
+/* Nome, tamanho e autor ocupam a linha; os botões passam para baixo em ecrãs estreitos. */
+.linha-livro .acoes-livro { justify-content: flex-end; }
+
+@media (max-width: 560px) {
+  .linha-livro { flex-wrap: wrap; }
+  .linha-livro .acoes-livro { width: 100%; justify-content: flex-start; }
+}
